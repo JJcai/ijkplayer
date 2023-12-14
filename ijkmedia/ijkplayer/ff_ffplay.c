@@ -1302,6 +1302,14 @@ static void update_video_pts(VideoState *is, double pts, int64_t pos, int serial
     sync_clock_to_slave(&is->extclk, &is->vidclk);
 }
 
+//add
+static void change_external_clock_speed(VideoState *is,float speed) {
+	if (speed != 1.0f){
+        set_clock_speed(&is->extclk, speed + EXTERNAL_CLOCK_SPEED_STEP * (1.0 - speed) / fabs(1.0 - speed));
+    }
+}
+//add end
+
 /* called to display each frame */
 static void video_refresh(FFPlayer *opaque, double *remaining_time)
 {
@@ -1325,6 +1333,15 @@ static void video_refresh(FFPlayer *opaque, double *remaining_time)
 
     if (is->video_st) {
 retry:
+        //当没有音频流的，有视频流时，且时间基准为外部时钟
+        //add support only video change speed
+        if(!is->audio_st && get_master_sync_type(is) == AV_SYNC_EXTERNAL_CLOCK) {
+             //如果速度不等于1，改变外部时钟速度
+             if(ffp->pf_playback_rate != 1.0f){
+                change_external_clock_speed(is,ffp->pf_playback_rate);
+             }
+        }
+        //add end
         if (frame_queue_nb_remaining(&is->pictq) == 0) {
             // nothing to do, no picture to display in the queue
         } else {
@@ -3273,7 +3290,7 @@ static int read_thread(void *arg)
     if (st_index[AVMEDIA_TYPE_AUDIO] >= 0) {
         stream_component_open(ffp, st_index[AVMEDIA_TYPE_AUDIO]);
     } else {
-        ffp->av_sync_type = AV_SYNC_VIDEO_MASTER;
+        ffp->av_sync_type = AV_SYNC_EXTERNAL_CLOCK;
         is->av_sync_type  = ffp->av_sync_type;
     }
 
